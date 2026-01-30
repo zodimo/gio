@@ -40,18 +40,41 @@ func (c *androidContext) Release() {
 }
 
 func (c *androidContext) Refresh() error {
-	c.Context.ReleaseSurface()
-	if err := c.win.setVisual(c.Context.VisualID()); err != nil {
+	// Get the native window
+	win, _, _ := c.win.nativeWindow()
+	newSurf := egl.NativeWindowType(unsafe.Pointer(win))
+
+	// Check if we need to recreate the surface.
+	// Only release if we already have a surface and the visual ID changes.
+	visID := c.Context.VisualID()
+
+	if c.Context.HasSurface() {
+		if err := c.win.setVisual(visID); err != nil {
+			return err
+		}
+		// If setVisual succeeded without changing anything (cache hit),
+		// we can keep the existing surface.
+		return nil
+	}
+
+	// No surface yet, or surface was destroyed - set up for creation.
+	c.Context.ReleaseSurface() // Safe to call, no-op if no surface
+	if err := c.win.setVisual(visID); err != nil {
 		return err
 	}
-	win, _, _ := c.win.nativeWindow()
-	c.eglSurf = egl.NativeWindowType(unsafe.Pointer(win))
+	c.eglSurf = newSurf
 	return nil
 }
 
 func (c *androidContext) Lock() error {
-	// The Android emulator creates a broken surface if it is not
-	// created on the same thread as the context is made current.
+	// If no surface exists yet, we need to call Refresh() first.
+	// This handles the case where Lock() is called before Refresh() in window.go,
+	// on emulators that don't support EGL_KHR_surfaceless_context.
+	if c.eglSurf == nil && !c.Context.HasSurface() {
+		if err := c.Refresh(); err != nil {
+			return err
+		}
+	}
 	if c.eglSurf != nil {
 		if err := c.Context.CreateSurface(c.eglSurf); err != nil {
 			return err

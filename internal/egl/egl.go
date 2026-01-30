@@ -121,6 +121,10 @@ func (c *Context) VisualID() int {
 	return c.eglCtx.visualID
 }
 
+func (c *Context) HasSurface() bool {
+	return c.eglSurf != nilEGLSurface
+}
+
 func (c *Context) CreateSurface(win NativeWindowType) error {
 	eglSurf, err := createSurface(c.disp, c.eglCtx, win)
 	c.eglSurf = eglSurf
