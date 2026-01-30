@@ -79,42 +79,15 @@ func (c *androidContext) Refresh() error {
 }
 ```
 
-### Issue 3: ANativeWindow_setBuffersGeometry Loop
-
-**Location:** `app/os_android.go:setVisual()`
-
-**Problem:** `setVisual()` was being called repeatedly with the same visual ID, causing `ANativeWindow_setBuffersGeometry` to be invoked in a loop.
-
-**Fix:** Added a global cache to skip redundant calls:
-
-```go
-var currentGlobalVisualID int // Global cache for visual ID
-
-func (w *window) setVisual(visID int) error {
-    if currentGlobalVisualID == visID {
-        return nil  // Skip redundant call
-    }
-    if C.ANativeWindow_setBuffersGeometry(w.win, 0, 0, C.int32_t(visID)) != 0 {
-        return errors.New("ANativeWindow_setBuffersGeometry failed")
-    }
-    currentGlobalVisualID = visID
-    return nil
-}
-```
-
 ## Files Modified
 
 1. **`app/egl_android.go`**
    - Modified `Lock()` to call `Refresh()` if no surface exists
    - Modified `Refresh()` to preserve existing surfaces
 
-2. **`app/os_android.go`**
-   - Added `currentGlobalVisualID` global cache variable
-   - Modified `setVisual()` to use cache
-
-3. **`internal/egl/egl.go`**
+2. **`internal/egl/egl.go`**
    - Added `HasSurface()` method to check if surface exists
-   - (Optional) Added alpha channel forcing for Android when sRGB not supported
+
 
 ## New API Added
 
@@ -154,7 +127,6 @@ Results:
 1. The fix is backward compatible - it only adds extra safety checks
 2. The `HasSurface()` method is a clean addition to the EGL API
 3. Consider whether `window.go` should call `Refresh()` before `Lock()` when sync is needed (architectural fix)
-4. The global cache for `setVisual()` assumes single-window apps (true for Android)
 
 ## Debug Logging
 

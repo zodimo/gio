@@ -150,8 +150,6 @@ import (
 	"gioui.org/unit"
 )
 
-var currentGlobalVisualID int // Global cache to prevent infinite surfaceChanged loops
-
 type window struct {
 	callbacks *callbacks
 	loop      *eventLoop
@@ -166,8 +164,6 @@ type window struct {
 	visible   bool
 	started   bool
 	animating bool
-
-	currentVisualID int // Cache to avoid redundant setBuffersGeometry calls
 
 	win       *C.ANativeWindow
 	config    Config
@@ -816,13 +812,9 @@ func (w *window) setVisible(env *C.JNIEnv) {
 }
 
 func (w *window) setVisual(visID int) error {
-	if currentGlobalVisualID == visID {
-		return nil
-	}
 	if C.ANativeWindow_setBuffersGeometry(w.win, 0, 0, C.int32_t(visID)) != 0 {
 		return errors.New("ANativeWindow_setBuffersGeometry failed")
 	}
-	currentGlobalVisualID = visID
 	return nil
 }
 
