@@ -393,6 +393,14 @@ func (s *shaperImpl) splitByFaces(inputs []shaping.Input, buf []shaping.Input) [
 		split = buf
 	}
 	for _, input := range inputs {
+		// Inform the font map of the run's script so ResolveFace can fall
+		// back to any font with coverage for this script. This mirrors how
+		// shaping.Segmenter.Split honors the exported shaping.FontmapScript
+		// interface. Gio splits by script itself (see splitByScript), so the
+		// script must be propagated explicitly here. Without it, the font
+		// map's script stays at its zero value and cross-family glyph
+		// fallback (step 4 of ResolveFace) never fires.
+		s.fontMap.SetScript(input.Script)
 		split = append(split, shaping.SplitByFace(input, s)...)
 	}
 	return split
@@ -415,8 +423,10 @@ func (s *shaperImpl) shapeText(ppem fixed.Int26_6, lc system.Locale, txt []rune)
 	}
 	// Break input on font glyph coverage.
 	inputs := s.splitBidi(input)
-	inputs = s.splitByFaces(inputs, s.splitScratch1[:0])
-	inputs = splitByScript(inputs, lcfg.Direction, s.splitScratch2[:0])
+
+	inputs = splitByScript(inputs, lcfg.Direction, s.splitScratch1[:0])
+	inputs = s.splitByFaces(inputs, s.splitScratch2[:0])
+
 	// Shape all inputs.
 	if needed := len(inputs) - len(s.outScratchBuf); needed > 0 {
 		s.outScratchBuf = slices.Grow(s.outScratchBuf, needed)
